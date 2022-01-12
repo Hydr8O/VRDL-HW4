@@ -1,5 +1,5 @@
 import os
-
+import torch
 from datasets import SRDataset
 from utils import convert_image
 
