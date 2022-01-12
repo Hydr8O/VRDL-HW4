@@ -1,7 +1,7 @@
 torch
 Pillow
 torchvision
-scikit-lear
+scikit-learn
 scikit-image
 numpy
 opencv-python
