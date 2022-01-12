@@ -6,7 +6,7 @@ from utils import convert_image
 output_dir = "output"
 
 device = torch.device("cuda")
-srresnet_checkpoint = "./models/best_checkpoint_srresnet.pth.tar"
+srresnet_checkpoint = "./best_114.pth.tar"
 
 srresnet = torch.load(srresnet_checkpoint)["model"].to(device)
 srresnet.eval()
