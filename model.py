@@ -6,7 +6,15 @@ class ConvolutionalBlock(nn.Module):
     A convolutional block, comprising convolutional, BN, activation layers.
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=False, activation=None):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        batch_norm=False,
+        activation=None,
+    ):
         """
         :param in_channels: number of input channels
         :param out_channels: number of output channels
@@ -19,26 +27,32 @@ class ConvolutionalBlock(nn.Module):
 
         if activation is not None:
             activation = activation.lower()
-            assert activation in {'prelu', 'leakyrelu', 'tanh'}
+            assert activation in {"prelu", "leakyrelu", "tanh"}
 
         # A container that will hold the layers in this convolutional block
         layers = list()
 
         # A convolutional layer
         layers.append(
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
-                      padding=kernel_size // 2))
+            nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=kernel_size // 2,
+            )
+        )
 
         # A batch normalization (BN) layer, if wanted
         if batch_norm is True:
             layers.append(nn.BatchNorm2d(num_features=out_channels))
 
         # An activation layer, if wanted
-        if activation == 'prelu':
+        if activation == "prelu":
             layers.append(nn.PReLU())
-        elif activation == 'leakyrelu':
+        elif activation == "leakyrelu":
             layers.append(nn.LeakyReLU(0.2))
-        elif activation == 'tanh':
+        elif activation == "tanh":
             layers.append(nn.Tanh())
 
         # Put together the convolutional block as a sequence of the layers in this container
@@ -70,8 +84,12 @@ class SubPixelConvolutionalBlock(nn.Module):
         super(SubPixelConvolutionalBlock, self).__init__()
 
         # A convolutional layer that increases the number of channels by scaling factor^2, followed by pixel shuffle and PReLU
-        self.conv = nn.Conv2d(in_channels=n_channels, out_channels=n_channels * (scaling_factor ** 2),
-                              kernel_size=kernel_size, padding=kernel_size // 2)
+        self.conv = nn.Conv2d(
+            in_channels=n_channels,
+            out_channels=n_channels * (scaling_factor ** 2),
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+        )
         # These additional channels are shuffled to form additional pixels, upscaling each dimension by the scaling factor
         self.pixel_shuffle = nn.PixelShuffle(upscale_factor=scaling_factor)
         self.prelu = nn.PReLU()
@@ -84,8 +102,12 @@ class SubPixelConvolutionalBlock(nn.Module):
         :return: scaled output images, a tensor of size (N, n_channels, w * scaling factor, h * scaling factor)
         """
         output = self.conv(input)  # (N, n_channels * scaling factor^2, w, h)
-        output = self.pixel_shuffle(output)  # (N, n_channels, w * scaling factor, h * scaling factor)
-        output = self.prelu(output)  # (N, n_channels, w * scaling factor, h * scaling factor)
+        output = self.pixel_shuffle(
+            output
+        )  # (N, n_channels, w * scaling factor, h * scaling factor)
+        output = self.prelu(
+            output
+        )  # (N, n_channels, w * scaling factor, h * scaling factor)
 
         return output
 
@@ -103,12 +125,22 @@ class ResidualBlock(nn.Module):
         super(ResidualBlock, self).__init__()
 
         # The first convolutional block
-        self.conv_block1 = ConvolutionalBlock(in_channels=n_channels, out_channels=n_channels, kernel_size=kernel_size,
-                                              batch_norm=True, activation='PReLu')
+        self.conv_block1 = ConvolutionalBlock(
+            in_channels=n_channels,
+            out_channels=n_channels,
+            kernel_size=kernel_size,
+            batch_norm=True,
+            activation="PReLu",
+        )
 
         # The second convolutional block
-        self.conv_block2 = ConvolutionalBlock(in_channels=n_channels, out_channels=n_channels, kernel_size=kernel_size,
-                                              batch_norm=True, activation=None)
+        self.conv_block2 = ConvolutionalBlock(
+            in_channels=n_channels,
+            out_channels=n_channels,
+            kernel_size=kernel_size,
+            batch_norm=True,
+            activation=None,
+        )
 
     def forward(self, input):
         """
@@ -130,7 +162,14 @@ class SRResNet(nn.Module):
     The SRResNet, as defined in the paper.
     """
 
-    def __init__(self, large_kernel_size=9, small_kernel_size=3, n_channels=64, n_blocks=16, scaling_factor=3):
+    def __init__(
+        self,
+        large_kernel_size=9,
+        small_kernel_size=3,
+        n_channels=64,
+        n_blocks=16,
+        scaling_factor=3,
+    ):
         """
         :param large_kernel_size: kernel size of the first and last convolutions which transform the inputs and outputs
         :param small_kernel_size: kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
@@ -143,25 +182,45 @@ class SRResNet(nn.Module):
         scaling_factor = int(scaling_factor)
 
         # The first convolutional block
-        self.conv_block1 = ConvolutionalBlock(in_channels=3, out_channels=n_channels, kernel_size=large_kernel_size,
-                                              batch_norm=False, activation='PReLu')
+        self.conv_block1 = ConvolutionalBlock(
+            in_channels=3,
+            out_channels=n_channels,
+            kernel_size=large_kernel_size,
+            batch_norm=False,
+            activation="PReLu",
+        )
 
         # A sequence of n_blocks residual blocks, each containing a skip-connection across the block
         self.residual_blocks = nn.Sequential(
-            *[ResidualBlock(kernel_size=small_kernel_size, n_channels=n_channels) for _ in range(n_blocks)])
+            *[
+                ResidualBlock(kernel_size=small_kernel_size, n_channels=n_channels)
+                for _ in range(n_blocks)
+            ]
+        )
 
         # Another convolutional block
-        self.conv_block2 = ConvolutionalBlock(in_channels=n_channels, out_channels=n_channels,
-                                              kernel_size=small_kernel_size,
-                                              batch_norm=True, activation=None)
+        self.conv_block2 = ConvolutionalBlock(
+            in_channels=n_channels,
+            out_channels=n_channels,
+            kernel_size=small_kernel_size,
+            batch_norm=True,
+            activation=None,
+        )
 
-        self.subpixel_convolutional_blocks = SubPixelConvolutionalBlock(kernel_size=small_kernel_size,
-                                                                        n_channels=n_channels,
-                                                                        scaling_factor=scaling_factor)
+        self.subpixel_convolutional_blocks = SubPixelConvolutionalBlock(
+            kernel_size=small_kernel_size,
+            n_channels=n_channels,
+            scaling_factor=scaling_factor,
+        )
 
         # The last convolutional block
-        self.conv_block3 = ConvolutionalBlock(in_channels=n_channels, out_channels=3, kernel_size=large_kernel_size,
-                                              batch_norm=False, activation='Tanh')
+        self.conv_block3 = ConvolutionalBlock(
+            in_channels=n_channels,
+            out_channels=3,
+            kernel_size=large_kernel_size,
+            batch_norm=False,
+            activation="Tanh",
+        )
 
     def forward(self, lr_imgs):
         """
@@ -175,7 +234,11 @@ class SRResNet(nn.Module):
         output = self.residual_blocks(output)  # (N, n_channels, w, h)
         output = self.conv_block2(output)  # (N, n_channels, w, h)
         output = output + residual  # (N, n_channels, w, h)
-        output = self.subpixel_convolutional_blocks(output)  # (N, n_channels, w * scaling factor, h * scaling factor)
-        sr_imgs = self.conv_block3(output)  # (N, 3, w * scaling factor, h * scaling factor)
+        output = self.subpixel_convolutional_blocks(
+            output
+        )  # (N, n_channels, w * scaling factor, h * scaling factor)
+        sr_imgs = self.conv_block3(
+            output
+        )  # (N, 3, w * scaling factor, h * scaling factor)
 
         return sr_imgs

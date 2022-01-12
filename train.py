@@ -19,7 +19,7 @@ large_kernel_size = 9  # kernel size of the first and last convolutions which tr
 small_kernel_size = 3  # kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
 n_channels = 64  # number of channels in-between, i.e. the input and output channels for the residual and subpixel convolutional blocks
 n_blocks = 16  # number of residual blocks
-checkpoint_dir = 'models'
+checkpoint_dir = "models"
 if not os.path.isdir(checkpoint_dir):
     os.mkdir(checkpoint_dir)
 
@@ -33,7 +33,7 @@ workers = 4  # number of workers for loading data in the DataLoader
 lr = 1e-3  # learning rate
 grad_clip = True  # clip if gradients are exploding
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 writer = SummaryWriter()
 
 cudnn.benchmark = True
@@ -47,40 +47,56 @@ def main():
 
     # Initialize model or load checkpoint
     if checkpoint is None:
-        model = SRResNet(large_kernel_size=large_kernel_size, small_kernel_size=small_kernel_size,
-                         n_channels=n_channels, n_blocks=n_blocks, scaling_factor=scaling_factor)
+        model = SRResNet(
+            large_kernel_size=large_kernel_size,
+            small_kernel_size=small_kernel_size,
+            n_channels=n_channels,
+            n_blocks=n_blocks,
+            scaling_factor=scaling_factor,
+        )
         # Initialize the optimizer
-        optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()),
-                                     lr=lr)
+        optimizer = torch.optim.Adam(
+            params=filter(lambda p: p.requires_grad, model.parameters()), lr=lr
+        )
 
     else:
         checkpoint = torch.load(checkpoint)
-        start_epoch = checkpoint['epoch'] + 1
-        model = checkpoint['model']
-        optimizer = checkpoint['optimizer']
+        start_epoch = checkpoint["epoch"] + 1
+        model = checkpoint["model"]
+        optimizer = checkpoint["optimizer"]
 
     # Move to default device
     model = model.to(device)
     criterion = nn.MSELoss().to(device)
 
     # Custom dataloaders
-    train_dataset = SRDataset(split='train',
-                              crop_size=crop_size,
-                              scaling_factor=scaling_factor,
-                              lr_img_type='imagenet-norm',
-                              hr_img_type='[-1, 1]')
+    train_dataset = SRDataset(
+        split="train",
+        crop_size=crop_size,
+        scaling_factor=scaling_factor,
+        lr_img_type="imagenet-norm",
+        hr_img_type="[-1, 1]",
+    )
 
-    val_dataset = SRDataset(split='val',
-                            crop_size=0,
-                            scaling_factor=scaling_factor,
-                            lr_img_type='imagenet-norm',
-                            hr_img_type='[-1, 1]')
+    val_dataset = SRDataset(
+        split="val",
+        crop_size=0,
+        scaling_factor=scaling_factor,
+        lr_img_type="imagenet-norm",
+        hr_img_type="[-1, 1]",
+    )
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers,
-                                               pin_memory=True)  # note that we're passing the collate function here
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=workers,
+        pin_memory=True,
+    )  # note that we're passing the collate function here
 
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=workers,
-                                             pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset, batch_size=1, shuffle=True, num_workers=workers, pin_memory=True
+    )
     # Total number of epochs to train for
     epochs = int(iterations // len(train_loader) + 1)
     print(epochs)
@@ -89,22 +105,26 @@ def main():
     for epoch in range(start_epoch, epochs):
 
         # One epoch's training
-        train(train_loader=train_loader,
-              model=model,
-              criterion=criterion,
-              optimizer=optimizer,
-              epoch=epoch)
-        psnr = val(val_loader=val_loader,
-                   model=model,
-                   epoch=epoch)
+        train(
+            train_loader=train_loader,
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer,
+            epoch=epoch,
+        )
+        psnr = val(val_loader=val_loader, model=model, epoch=epoch)
         if psnr.avg > max_psnr:
             max_psnr = psnr.avg
-            torch.save({'epoch': epoch, 'model': model, 'optimizer': optimizer},
-                       os.path.join(checkpoint_dir, 'best_checkpoint_srresnet.pth.tar'))
+            torch.save(
+                {"epoch": epoch, "model": model, "optimizer": optimizer},
+                os.path.join(checkpoint_dir, "best_checkpoint_srresnet.pth.tar"),
+            )
 
         # Save checkpoint
-        torch.save({'epoch': epoch, 'model': model, 'optimizer': optimizer},
-                   os.path.join(checkpoint_dir, 'checkpoint_srresnet.pth.tar'))
+        torch.save(
+            {"epoch": epoch, "model": model, "optimizer": optimizer},
+            os.path.join(checkpoint_dir, "checkpoint_srresnet.pth.tar"),
+        )
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -138,9 +158,17 @@ def train(train_loader, model, criterion, optimizer, epoch):
         sr_imgs = model(lr_imgs)
 
         # Calculate PSNR
-        sr_imgs_y = convert_image(sr_imgs, source='[-1, 1]', target='y-channel').squeeze(0)
-        hr_imgs_y = convert_image(hr_imgs, source='[-1, 1]', target='y-channel').squeeze(0)
-        psnr = peak_signal_noise_ratio(hr_imgs_y.cpu().detach().numpy(), sr_imgs_y.cpu().detach().numpy(), data_range=255.)
+        sr_imgs_y = convert_image(
+            sr_imgs, source="[-1, 1]", target="y-channel"
+        ).squeeze(0)
+        hr_imgs_y = convert_image(
+            hr_imgs, source="[-1, 1]", target="y-channel"
+        ).squeeze(0)
+        psnr = peak_signal_noise_ratio(
+            hr_imgs_y.cpu().detach().numpy(),
+            sr_imgs_y.cpu().detach().numpy(),
+            data_range=255.0,
+        )
         PSNRs.update(psnr, lr_imgs.size(0))
 
         # Loss
@@ -166,15 +194,19 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # Reset start time
         start = time.time()
 
-    writer.add_scalar('Loss/train', losses.avg, epoch)
-    writer.add_scalar('PSNR/train', PSNRs.avg, epoch)
+    writer.add_scalar("Loss/train", losses.avg, epoch)
+    writer.add_scalar("PSNR/train", PSNRs.avg, epoch)
     print(
-        f'Epoch: {epoch} -- '
-        f'Batch Time: {batch_time.avg:.3f} -- '
-        f'Loss: {losses.avg:.4f} -- '
-        f'PSNR: {PSNRs.avg:.4f}'
+        f"Epoch: {epoch} -- "
+        f"Batch Time: {batch_time.avg:.3f} -- "
+        f"Loss: {losses.avg:.4f} -- "
+        f"PSNR: {PSNRs.avg:.4f}"
     )
-    del lr_imgs, hr_imgs, sr_imgs  # free some memory since their histories may be stored
+    del (
+        lr_imgs,
+        hr_imgs,
+        sr_imgs,
+    )  # free some memory since their histories may be stored
 
 
 def val(val_loader, model, epoch):
@@ -187,16 +219,22 @@ def val(val_loader, model, epoch):
             hr_imgs = hr_imgs.to(device)
 
             sr_imgs = model(lr_imgs)
-            sr_imgs_y = convert_image(sr_imgs, source='[-1, 1]', target='y-channel').squeeze(0)
-            hr_imgs_y = convert_image(hr_imgs, source='[-1, 1]', target='y-channel').squeeze(0)
-            psnr = peak_signal_noise_ratio(hr_imgs_y.cpu().numpy(), sr_imgs_y.cpu().numpy(), data_range=255.)
+            sr_imgs_y = convert_image(
+                sr_imgs, source="[-1, 1]", target="y-channel"
+            ).squeeze(0)
+            hr_imgs_y = convert_image(
+                hr_imgs, source="[-1, 1]", target="y-channel"
+            ).squeeze(0)
+            psnr = peak_signal_noise_ratio(
+                hr_imgs_y.cpu().numpy(), sr_imgs_y.cpu().numpy(), data_range=255.0
+            )
             PSNRs.update(psnr, lr_imgs.size(0))
-    print(f'Epoch: {epoch}, PSNR: {PSNRs.avg}')
-    writer.add_scalar('PSNR/val', PSNRs.avg, epoch)
+    print(f"Epoch: {epoch}, PSNR: {PSNRs.avg}")
+    writer.add_scalar("PSNR/val", PSNRs.avg, epoch)
     del lr_imgs, hr_imgs, sr_imgs
 
     return PSNRs
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
